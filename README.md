@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Inventory API
 
 A simple Web API project built with **.NET 8** for learning and practice.  
