@@ -1,9 +1,14 @@
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddDbContext<AppDbContext>(options => 
+    options.UseSqlServer(builder.Configuration.GetConnectionString("defaultConnection")));
+
+// Validation automatique
+builder.Services.AddProblemDetails();
 
 var app = builder.Build();
 
@@ -15,30 +20,79 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseExceptionHandler(exceptionHandlerApp =>
+    exceptionHandlerApp.Run(async context =>
+        await Results.Problem().ExecuteAsync(context)));
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+/* CRUD */
 
-app.MapGet("/weatherforecast", () =>
+// Récupère toutes les tâches
+app.MapGet("/items", async (AppDbContext db) =>
+    await db.Items.ToListAsync());
+
+// Tâches par ID
+app.MapGet("/items/{id}", async (int id, AppDbContext db) =>
+    await db.Items.FindAsync(id)
+        is Item item
+            ? Results.Ok(item)
+            : Results.NotFound());
+
+// POST - Crée une item avec ID
+app.MapPost("/items", async (Item item, AppDbContext db) =>
 {
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+    /*
+    // Name
+    if (string.IsNullOrEmpty(item.Name))
+        return Results.BadRequest("Name required");
+
+    // Price
+    if (item.Price < 0)        
+        return Results.BadRequest("Price cannot be negative.");
+
+    // Quantity
+    if (item.Quantity < 0)        
+        return Results.BadRequest("Quantity cannot be negative.");
+    */
+    var newItem = new Item
+    {
+        Name = item.Name,
+        Price = item.Price,
+        Quantity = item.Quantity
+    };
+
+    db.Items.Add(newItem);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/items/{item.Id}", item);
+});
+
+// PUT - Modifie
+app.MapPut("/items/{id}", async (int id, Item inputItem, AppDbContext db) =>
+{
+    var item = await db.Items.FindAsync(id);
+    if (item is null) return Results.NotFound();
+
+    item.Name = inputItem.Name;
+    item.Quantity = inputItem.Quantity;
+    item.Price = inputItem.Price;
+
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
+
+// DELETE - Supprimer
+app.MapDelete("/items/{id}", async (int id, AppDbContext db) =>
+{
+    if (await db.Items.FindAsync(id) is Item item)
+    {
+        db.Items.Remove(item);
+        await db.SaveChangesAsync();
+        return Results.NoContent();
+    }
+    return Results.NotFound();
+});
+
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
