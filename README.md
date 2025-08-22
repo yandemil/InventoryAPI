@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Inventory API
 
 A simple Web API project built with **.NET 8** for learning and practice.  
@@ -18,3 +19,7 @@ Clone the repository and run locally:
 git clone https://github.com/your-username/inventory.git
 cd inventory
 dotnet run
+=======
+# InventoryAPI
+Inventory API using .NET8
+>>>>>>> 18e6e8adcc80abe7d8898d0449f53706793b1aaf
