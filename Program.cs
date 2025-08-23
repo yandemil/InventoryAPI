@@ -1,4 +1,8 @@
+using FluentResults;
 using Microsoft.EntityFrameworkCore;
+using Inventory.Extensions;
+using CustomError = Inventory.Extensions.Error;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,27 +36,27 @@ app.MapGet("/items", async (AppDbContext db) =>
 
 // Tâches par ID
 app.MapGet("/items/{id}", async (int id, AppDbContext db) =>
-    await db.Items.FindAsync(id)
-        is Item item
-            ? Results.Ok(item)
-            : Results.NotFound());
+{
+    var item = await db.Items.FindAsync(id);
 
-// POST - Crée une item avec ID
+    return item is not null
+        ? Results.Ok(item)
+        : Result.Fail(CustomError.NotFound("ITEM_404", "Item not in the database")
+                .WithMetadata("Field", "id")).ToProblematic();
+});
+
+/*
+app.MapGet("/items/{id}", async (int id, AppDbContext db) => 
+    await db.Items.FindAsync(id) is Item item ? Results.Ok(item) : Results.NotFound());
+*/
+
+// POST - Créer une item
 app.MapPost("/items", async (Item item, AppDbContext db) =>
 {
-    /*
-    // Name
-    if (string.IsNullOrEmpty(item.Name))
-        return Results.BadRequest("Name required");
+    Result validationResult = ItemValidator.Validate(item);
+    if (validationResult.IsFailed)
+        return validationResult.ToProblematic();
 
-    // Price
-    if (item.Price < 0)        
-        return Results.BadRequest("Price cannot be negative.");
-
-    // Quantity
-    if (item.Quantity < 0)        
-        return Results.BadRequest("Quantity cannot be negative.");
-    */
     var newItem = new Item
     {
         Name = item.Name,
@@ -63,10 +67,10 @@ app.MapPost("/items", async (Item item, AppDbContext db) =>
     db.Items.Add(newItem);
     await db.SaveChangesAsync();
 
-    return Results.Created($"/items/{item.Id}", item);
+    return Results.Created($"/items/{newItem.Id}", newItem);
 });
 
-// PUT - Modifie
+// PUT - Modifier
 app.MapPut("/items/{id}", async (int id, Item inputItem, AppDbContext db) =>
 {
     var item = await db.Items.FindAsync(id);
@@ -81,7 +85,6 @@ app.MapPut("/items/{id}", async (int id, Item inputItem, AppDbContext db) =>
     return Results.NoContent();
 });
 
-
 // DELETE - Supprimer
 app.MapDelete("/items/{id}", async (int id, AppDbContext db) =>
 {
@@ -91,7 +94,11 @@ app.MapDelete("/items/{id}", async (int id, AppDbContext db) =>
         await db.SaveChangesAsync();
         return Results.NoContent();
     }
-    return Results.NotFound();
+
+    // return Results.NotFound();
+    return Result.Fail(CustomError.NotFound("ITEM_404", "Item not in the database")
+                .WithMetadata("Field", "id"))
+                .ToProblematic();
 });
 
 
