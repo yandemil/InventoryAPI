@@ -4,7 +4,7 @@ using FluentResults;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-public static class ResultExtensions 
+public static class ResultExtensions
 {
     public static IResult ToProblematic(this Result result)
     {
@@ -28,14 +28,7 @@ public static class ResultExtensions
                     statusCode: statusCode,
                     title: GetTitle(firstError.errorType),
                     detail: firstError.Description ?? "An error occurred during the operation.",
-                    extensions: new Dictionary<string, object?>
-                    {
-                        // Provide a default value if {errorCode} is null
-                        { "errorCode", firstError.Code ?? "UNKNOWN"},
-                        { "errorType", firstError.errorType },
-                        { "description", firstError.Description },
-                        { "errors", errorMessages }
-                    }
+                    extensions: ErrorExtensions(firstError, errorMessages)
                 );
     }
 
@@ -50,14 +43,13 @@ public static class ResultExtensions
         var firstError = result.Errors.OfType<Error>().FirstOrDefault();
 
         if (firstError is null)
-        { 
-             return new ProblemDetails
+        {
+            return new ProblemDetails
             {
                 Title = "Unknown error occurred!",
                 Status = 500
             };
         }
-            
 
         var statusCode = GetStatusCode(firstError.errorType);
 
@@ -66,14 +58,7 @@ public static class ResultExtensions
             Status = statusCode,
             Title = GetTitle(firstError.errorType),
             Detail = firstError.Description ?? "An error occurred during the operation.",
-            Extensions = new Dictionary<string, object?>
-                    {
-                        // Provide a default value if {errorCode} is null
-                        { "errorCode", firstError.Code ?? "UNKNOWN"},
-                        { "errorType", firstError.errorType },
-                        { "description", firstError.Description },
-                        { "errors", errorMessages }
-                    }
+            Extensions = ErrorExtensions(firstError, errorMessages)
         };
     }
 
@@ -84,8 +69,8 @@ public static class ResultExtensions
             ErrorType.Validation => StatusCodes.Status400BadRequest,
             ErrorType.NotFound => StatusCodes.Status404NotFound,
             ErrorType.Conflict => StatusCodes.Status409Conflict,
-            _ => StatusCodes.Status500InternalServerError      
-        };    
+            _ => StatusCodes.Status500InternalServerError
+        };
 
 
     private static string GetTitle(ErrorType errorType) =>
@@ -95,7 +80,19 @@ public static class ResultExtensions
             ErrorType.Validation => "Validation",
             ErrorType.NotFound => "Not Found",
             ErrorType.Conflict => "Conflict",
-            _ => "Server Failure",   
-        };    
+            _ => "Server Failure",
+        };
+
+    private static Dictionary<string, object?> ErrorExtensions(Error error, string[] errorMessages)
+    {
+        return new Dictionary<string, object?>
+                    {
+                        // Provide a default value if {errorCode} is null
+                        { "errorCode", error.Code ?? "UNKNOWN"},
+                        { "errorType", error.errorType },
+                        { "description", error.Description },
+                        { "errors", errorMessages }
+                    };
+    }
 
 }
